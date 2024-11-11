@@ -1,1 +1,1 @@
-# PatternRecognitionTeamwork
+# PRTeamwork
