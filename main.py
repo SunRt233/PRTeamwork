@@ -3,7 +3,7 @@ import pandas as pd
 from sklearn.decomposition import PCA 
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
-# import numpy as np
+import numpy as np
 
 def getData(path):
     df = pd.read_excel(path,'Data')
@@ -21,7 +21,7 @@ def pcaProcess(data,dmins=10):
     scaledX = scalor.fit_transform(X)
     X_pca = pca.fit_transform(scaledX)
     print('主成分方差贡献率：',pca.explained_variance_ratio_)
-    # print('累计主成分方差贡献率：',np.cumsum(pca.explained_variance_ratio_))
+    print('累计主成分方差贡献率：',np.cumsum(pca.explained_variance_ratio_))
     
     return [Y,X_pca]
 
