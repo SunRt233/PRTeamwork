@@ -29,8 +29,8 @@ def splitData(data,ratio=0.6):
     Y,X = data
     Y_train = Y[:int(ratio*len(Y))]
     X_train = X[:int(ratio*len(X))]
-    Y_test = Y[int(ratio*len(Y)):]
-    X_test = X[int(ratio*len(X)):]
+    Y_test = Y[int(ratio*len(Y))+1:]
+    X_test = X[int(ratio*len(X))+1:]
     
     return [Y_train,X_train,Y_test,X_test]
 
@@ -47,6 +47,7 @@ def main():
     while input('继续运行？[Y/N]') == 'Y':
         dmins = int(input('输入PCA维度:'))
         ratio = float(input('输入训练集比例:'))
+        print('PCA维度:',dmins,'训练集比例:',ratio)
         
         data = getData(r'./数据及说明/S3-CTG.xlsx')
         Y_train,X_train,Y_test,X_test = splitData(data,ratio)
