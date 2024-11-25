@@ -9,7 +9,7 @@ def getData(path):
     df = pd.read_excel(path,'Data')
     X = df.iloc[:,6:28].values[1:]
     Y = df[['NSP']].values[1:]
-    
+    print(type(Y))    
     return [Y,X]
 
 def pcaProcess(data,dmins=10):
