@@ -7,6 +7,8 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
 
+from data import DataContainer
+
 import numpy as np
 
 class Classifier:
@@ -17,13 +19,13 @@ class Classifier:
     def __init__(self):
         self._pca_processed_data = None
         self._n = None
+        self._trained_memory = None
 
-    def train(self, training_data: dict[str, list], method: Method, **train_args) -> None:
+    def train(self, training_data: DataContainer, method: Method, **train_args) -> None:
         match method:
             case Classifier.Method.PCA:
-                self._pca_processed_data = self._pca_process(training_data['samples'], **train_args)
-                knn_data = {'samples': self._pca_processed_data
-                    , 'labels': training_data['labels']}
+                self._store_memory(self._pca_process(training_data.samples, **train_args))
+                knn_data = DataContainer(self._get_memory(), training_data.labels)
                 self._knn_init(knn_data, **train_args)
                 self._check_selected_method(method)
             case Classifier.Method.FLD:
@@ -77,11 +79,18 @@ class Classifier:
         else:
             self.method = method
 
-    def _knn_init(self, training_data: dict[str, list], **train_args) -> None:
-        self._n = int(min(35,sqrt(len(training_data['samples']))))
+    def _knn_init(self, training_data: DataContainer, **train_args) -> None:
+        self._n = int(min(35.0,sqrt(len(training_data.samples))))
         self._knn = KNeighborsClassifier(n_neighbors=self._n)
-        self._knn.fit(training_data['samples'], training_data['labels'])
+        self._knn.fit(training_data.samples, training_data.labels)
 
     def _knn_predict(self, data) -> list:
         return self._knn.predict(data)
 
+    def _store_memory(self, memory):
+        self._trained_memory = memory
+
+    def _get_memory(self):
+        if not hasattr(self, '_trained_memory'):
+            raise ValueError('还没训练呢！')
+        return self._trained_memory
