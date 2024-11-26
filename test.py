@@ -1,6 +1,8 @@
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor, Future
 
+import pandas as pd
+
 from classifier import Classifier
 from data import DataProvider
 
@@ -41,7 +43,7 @@ def arrange_result(global_results, log_enabled=False) -> list:
             print(
                 f'分割比例：{ratio}\t运行次数：{len(results)}\t平均正确率：{correct_rate}\t最佳正确率：{best_correct_rate}\t最差正确率：{worst_correct_rate}\t偏差：{deviation}')
         # 保存当前ratio下平均结果到全局结果中
-        arr.append({'平均正确率': correct_rate, '训练集测试集分割比例': ratio, '运行次数：': len(results)})
+        arr.append({'平均正确率': correct_rate, '训练集测试集分割比例': ratio, '运行次数': len(results), '最佳正确率': best_correct_rate, '最差正确率': worst_correct_rate, '偏差': deviation})
     return arr
 
 
@@ -90,10 +92,14 @@ def main():
                     print(f'进度：{completed_count}/{total_tasks}')
 
             # 选出最好的结果
-            best_result = max(arrange_result(global_results, True), key=lambda x: x['平均正确率'])
+            arr = arrange_result(global_results, True)
+            best_result = max(arr, key=lambda x: x['平均正确率'])
             print('结果总结')
             print('划分比例增量步长：', ratio_step,'是否打乱数据：', shuffle, '方法：', method.name, '每轮运行次数：', turns, '线程数量：', max_threads)
             print('全局最优结果：', best_result)
+
+            print(arr)
+            pd.DataFrame(arr).to_csv('result.csv')
 
 
 main()
