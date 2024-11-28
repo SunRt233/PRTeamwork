@@ -87,7 +87,7 @@ class Classifier:
             pca_scaler = StandardScaler()
             pca = PCA()
             scaled_samples = pca_scaler.fit_transform(data)
-            pca_processed_samples = pca.fit_transform(scaled_samples)
+            _ = pca.fit_transform(scaled_samples)
             if self.print_log:
                 print('主成分方差贡献率：', ["{:.8f}".format(x) for x in pca.explained_variance_ratio_])
             temp = np.cumsum(pca.explained_variance_ratio_)
@@ -131,7 +131,7 @@ class Classifier:
             lda_scaler = StandardScaler()
             lda = LinearDiscriminantAnalysis()
             scaled_samples = lda_scaler.fit_transform(data)
-            lda_processed_samples = lda.fit_transform(scaled_samples, np.ravel(labels))
+            _ = lda.fit_transform(scaled_samples, np.ravel(labels))
             if self.print_log:
                 print('主成分方差贡献率：', ["{:.8f}".format(x) for x in lda.explained_variance_ratio_])
             temp = np.cumsum(lda.explained_variance_ratio_)

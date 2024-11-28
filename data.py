@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import random
-
 import pandas as pd
-
 
 class DataContainer:
     """

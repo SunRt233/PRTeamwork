@@ -87,7 +87,7 @@ def main():
 
                 completed_count = 0
                 total_tasks = len(futures)
-                for future in concurrent.futures.as_completed(futures):
+                for _ in concurrent.futures.as_completed(futures):
                     completed_count += 1
                     print(f'进度：{completed_count}/{total_tasks}')
 
