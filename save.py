@@ -75,7 +75,7 @@ class TrainSave:
             # au_roc的键
             '最优K值': max(self.au_roc, key=self.au_roc.get),
             '最差K值': min(self.au_roc, key=self.au_roc.get),
-            '中位数K值': sorted(self.au_roc.keys())[len(self.au_roc) // 2],
+            '中位数K值': sorted(self.au_roc,key=self.au_roc.get)[len(self.au_roc) // 2],
             '最优au_roc': max(self.au_roc.values()),
             '最差au_roc': min(self.au_roc.values()),
             '中位数au_roc': sorted(self.au_roc.values())[len(self.au_roc) // 2]
