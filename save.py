@@ -15,7 +15,7 @@ class TrainSave:
         self.verification_data = verification_data
         self.test_data = test_data
         self.evaluation_results = {}
-        self.au_roc = {}
+        self.au_roc : dict[int, float] = {}
 
         col = [f'特征{i}' for i in range(self.train_data.num_features())]
         col.extend(['标签'])
@@ -76,7 +76,7 @@ class TrainSave:
             '最优K值': max(self.au_roc, key=self.au_roc.get),
             '最差K值': min(self.au_roc, key=self.au_roc.get),
             '中位数K值': sorted(self.au_roc,key=self.au_roc.get)[len(self.au_roc) // 2],
-            '最优au_roc': max(self.au_roc.values()),
-            '最差au_roc': min(self.au_roc.values()),
-            '中位数au_roc': sorted(self.au_roc.values())[len(self.au_roc) // 2]
+            '最优au_roc': float(max(self.au_roc.values())),
+            '最差au_roc': float(min(self.au_roc.values())),
+            '中位数au_roc': float(sorted(self.au_roc.values())[len(self.au_roc) // 2])
         }

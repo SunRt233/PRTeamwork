@@ -3,6 +3,7 @@ import os
 import re
 from datetime import datetime
 
+import numpy as np
 from prettytable import PrettyTable
 
 from classifier import PCAKNNClassifier, LDAKNNClassifier, BaseClassifier
@@ -102,7 +103,7 @@ def mode_train(interactive: bool):
         # 打印K默认范围
         print(f'K 的默认范围是 {k_min} ~ {k_max}')
 
-    shuffle_turn = 1
+    shuffle_turn = 5
     while interactive:
         input_str = input(prompt(f'输入打乱次数，默认为 {shuffle_turn}', suffix='：'))
         match input_str:
@@ -138,9 +139,7 @@ def mode_train(interactive: bool):
                          '中位数K值', '最优au_roc', '最差au_roc', '中位数au_roc']
     for train_save in train_saves:
         summary = train_save.summary()
-        table.add_row(
-            [summary['分类器'], summary['训练集大小'], summary['验证集大小'], summary['测试集大小'], summary['K值范围'],
-             summary['最优K值'], summary['最差K值'], summary['中位数K值'], summary['最优au_roc'], summary['最差au_roc'],summary['中位数au_roc']])
+        table.add_row([round(item,4) if isinstance(item,float) else item for item in summary.values()])
     print(table)
 
 
