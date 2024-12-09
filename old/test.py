@@ -2,22 +2,30 @@ import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor, Future
 
 import pandas as pd
+import numpy as np
 
 from classifier import Classifier
 from data import DataProvider
+from sklearn.metrics import roc_auc_score
 
-data_provider = DataProvider(r'./数据及说明/S3-CTG.xlsx')
-data_provider.read_data()
+from roc import plot_roc
+
+data_provider = DataProvider(r'../数据及说明/S3-CTG.xlsx')
+data_provider.load_data()
 
 
 def run_once(ratio: float, shuffle: bool, method: Classifier.Method):
     classifier = Classifier()
     train_data, test_data = data_provider.provide_split_data(ratio, shuffle)
     classifier.train(train_data, method)
-    result = classifier.predict(test_data.samples)
+    result,probability = classifier.predict(test_data.samples)
+    roc_ = roc(np.ravel(test_data.labels),probability)
     correct_rate = match_test(result, test_data)
-    return {'正确率': correct_rate, '训练集测试集分割比例': ratio, '是否打乱数据': shuffle, '方法': method.name}
+    plot_roc(classifier, test_data)
+    return {'正确率': correct_rate, '训练集测试集分割比例': ratio, '是否打乱数据': shuffle, '方法': method.name,'ROC':roc_}
 
+def roc(real_labels,probabilities) -> float:
+    return roc_auc_score(y_true=real_labels, y_score=probabilities, multi_class='ovo',average='weighted',labels=[1,2,3])
 
 def match_test(result, test_data):
     correct_num = 0
@@ -32,18 +40,23 @@ def arrange_result(global_results, log_enabled=False) -> list:
     arr = []
     for ratio, results in global_results.items():
         # 计算平均正确率
-        correct_rate = sum([result['正确率'] for result in results]) / len(results)
+        avg_correct_rate = sum([result['正确率'] for result in results]) / len(results)
         # 最好的正确率
         best_correct_rate = max([result['正确率'] for result in results])
         # 最差的正确率
         worst_correct_rate = min([result['正确率'] for result in results])
         # 偏差
-        deviation = best_correct_rate - worst_correct_rate
+        correct_rate_deviation = best_correct_rate - worst_correct_rate
+
+        avg_roc = sum([result['ROC'] for result in results]) / len(results)
+        best_roc = max([result['ROC'] for result in results])
+        worst_roc = min([result['ROC'] for result in results])
+        roc_deviation = best_roc - worst_roc
         if log_enabled:
             print(
-                f'分割比例：{ratio}\t运行次数：{len(results)}\t平均正确率：{correct_rate}\t最佳正确率：{best_correct_rate}\t最差正确率：{worst_correct_rate}\t偏差：{deviation}')
+                f'分割比例：{ratio}\t运行次数：{len(results)}\t平均正确率：{avg_correct_rate}\t最佳正确率：{best_correct_rate}\t最差正确率：{worst_correct_rate}\t偏差：{correct_rate_deviation}')
         # 保存当前ratio下平均结果到全局结果中
-        arr.append({'平均正确率': correct_rate, '训练集测试集分割比例': ratio, '运行次数': len(results), '最佳正确率': best_correct_rate, '最差正确率': worst_correct_rate, '偏差': deviation})
+        arr.append({'平均正确率': avg_correct_rate, '训练集测试集分割比例': ratio, '运行次数': len(results), '最佳正确率': best_correct_rate, '最差正确率': worst_correct_rate, '偏差': correct_rate_deviation, '平均ROC': avg_roc, '最佳ROC': best_roc, '最差ROC': worst_roc, 'ROC偏差': roc_deviation})
     return arr
 
 
@@ -92,13 +105,12 @@ def main():
                     print(f'进度：{completed_count}/{total_tasks}')
 
             # 选出最好的结果
-            arr = arrange_result(global_results, True)
+            arr = arrange_result(global_results, False)
             best_result = max(arr, key=lambda x: x['平均正确率'])
             print('结果总结')
             print('划分比例增量步长：', ratio_step,'是否打乱数据：', shuffle, '方法：', method.name, '每轮运行次数：', turns, '线程数量：', max_threads)
             print('全局最优结果：', best_result)
 
-            print(arr)
             pd.DataFrame(arr).to_csv('result.csv')
 
 

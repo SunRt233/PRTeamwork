@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import math
+from abc import ABC, abstractmethod
 from enum import Enum
 from math import sqrt
-
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
@@ -21,6 +22,118 @@ class Memory:
         self.processor = processor  # 数据处理对象（PCA 或 LDA）
         self.dimens = dimens  # 保留的主成分个数
 
+class BaseClassifier(ABC):
+    """
+    抽象基类，定义分类器的基本接口。
+    """
+    @abstractmethod
+    def train(self, data: DataContainer,k: int):
+        """
+        训练分类器。
+        :param data: 训练数据容器
+        """
+        pass
+
+    @abstractmethod
+    def predict(self, samples: list) -> tuple[list, list]:
+        """
+        预测样本的类别。
+        :param samples: 待预测的样本列表
+        :return: 预测的类别列表和概率列表
+        """
+        pass
+
+    def _store_memory(self, memory):
+        """
+        存储训练后记忆。
+        :param memory: 训练后记忆
+        """
+        self._trained_memory = memory
+
+    def _get_memory(self):
+        """
+        获取练后记忆。
+        :return: 训练后的记忆
+        """
+        if not hasattr(self, '_trained_memory'):
+            raise ValueError('还没训练呢！')
+        return self._trained_memory
+
+class PCAKNNClassifier(BaseClassifier):
+    """
+    PCA 降维后 KNN 分类器。
+    """
+    def __init__(self, dimens=-1, print_log=False):
+        self.print_log = None
+        self.dimens = dimens
+
+    def train(self, data: DataContainer, k: int):
+        if 0 < self.dimens < data.num_features():
+            dimens = self.dimens
+        else:
+            pca_scaler = StandardScaler()
+            pca = PCA()
+            scaled_samples = pca_scaler.fit_transform(data.samples)
+            _ = pca.fit_transform(scaled_samples)
+            if self.print_log:
+                print('主成分方差贡献率：', ["{:.8f}".format(x) for x in pca.explained_variance_ratio_])
+            temp = np.cumsum(pca.explained_variance_ratio_)
+            dimens = 0
+            for i in range(0, len(temp)):
+                if temp[i] >= 0.9:
+                    dimens = i + 1
+                    break
+            if self.print_log:
+                print(f'选择保留主成分个数为：{dimens}')
+        pca_scaler = StandardScaler()
+        pca = PCA(n_components=dimens)
+        scaled_samples = pca_scaler.fit_transform(data.samples)
+        pca_processed_samples = pca.fit_transform(scaled_samples)
+
+        knn = KNeighborsClassifier(n_neighbors=k)
+        knn.fit(pca_processed_samples, data.labels)
+        self._store_memory((pca_processed_samples, pca, pca_scaler, knn))
+
+    def predict(self, samples: list):
+        _, pca, pca_scaler, knn = self._get_memory()
+        processed_samples = pca.transform(pca_scaler.transform(samples))
+        return knn.predict(processed_samples), knn.predict_proba(processed_samples)
+
+
+class LDAKNNClassifier(BaseClassifier):
+    def __init__(self, dimens=-1, print_log=False):
+        self.print_log = None
+        self.dimens = dimens
+
+    def train(self, data: DataContainer, k: int):
+        if 0 < self.dimens < data.num_features():
+            dimens = self.dimens
+        else:
+            scaler = StandardScaler()
+            scaled_samples = scaler.fit_transform(data.samples)
+            lda = LinearDiscriminantAnalysis()
+            lda.fit_transform(scaled_samples, data.labels)
+            if self.print_log:
+                print('主成分方差贡献率：', ["{:.8f}".format(x) for x in lda.explained_variance_ratio_])
+            temp = np.cumsum(lda.explained_variance_ratio_)
+            dimens = 0
+            for i in range(0, len(temp)):
+                if temp[i] >= 0.9:
+                    dimens = i + 1
+                    break
+            if self.print_log:
+                print(f'选择保留主成分个数为：{dimens}')
+        scaler = StandardScaler()
+        lda = LinearDiscriminantAnalysis(n_components=dimens)
+        processed_samples = lda.fit_transform(scaler.fit_transform(data.samples), data.labels)
+        knn = KNeighborsClassifier(n_neighbors=k)
+        knn.fit(processed_samples, data.labels)
+        self._store_memory((processed_samples, lda, scaler, knn))
+
+    def predict(self, samples: list):
+        _, lda, scaler, knn = self._get_memory()
+        processed_samples = lda.transform(scaler.transform(samples))
+        return knn.predict(processed_samples), knn.predict_proba(processed_samples)
 
 class Classifier:
     """
@@ -183,13 +296,13 @@ class Classifier:
         self._knn = KNeighborsClassifier(n_neighbors=self._n)
         self._knn.fit(training_data.samples, np.ravel(training_data.labels))
 
-    def _knn_predict(self, data) -> list:
+    def _knn_predict(self, data) -> tuple[list,list]:
         """
         使用 KNN 分类器进行预测。
         :param data: 待预测的数据
         :return: 预测结果
         """
-        return self._knn.predict(data)
+        return self._knn.predict(data),self._knn.predict_proba(data)
 
     def _store_memory(self, memory: Memory):
         """
