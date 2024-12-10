@@ -3,18 +3,18 @@ import os
 import re
 from datetime import datetime
 
-import numpy as np
 from prettytable import PrettyTable
 
 from classifier import PCAKNNClassifier, LDAKNNClassifier, BaseClassifier
 from data import DataProvider
-from save import TrainSave
+from save import TrainSave, TrainSaveLoader
 
-saves = r'./saves'
+saves_path = r'./saves'
+best_test_saves_path = r'./best_tests'
 
 running_modes = [
     {'编号': 1, '模式': '训练', '描述': '批量运行调整超参数'},
-    {'编号': 2, '模式': '展示', '描述': '加载历史最优并展示'}
+    {'编号': 2, '模式': '展示', '描述': '加载历史数据并测试'}
 ]
 
 support_methods = [
@@ -129,7 +129,7 @@ def mode_train(interactive: bool):
         for classifier in classifiers:
             print(f'开始训练 {classifier.__class__.__name__}，第 {t} 次打乱')
             train_save = train(classifier, data_provider, k_min, k_max, shuffle=True)
-            train_save.save(saves, f'{time}{classifier.__class__.__name__}', t)
+            train_save.save(saves_path, f'{time}{train_save.classifier}', t)
             train_saves.append(train_save)
 
     print('训练完成')
@@ -139,45 +139,136 @@ def mode_train(interactive: bool):
                          '中位数K值', '最优au_roc', '最差au_roc', '中位数au_roc']
     for train_save in train_saves:
         summary = train_save.summary()
-        table.add_row([round(item,4) if isinstance(item,float) else item for item in summary.values()])
+        table.add_row([round(item, 4) if isinstance(item, float) else item for item in summary.values()])
     print(table)
 
 
-def mode_show():
-    # Table列出saves下的TrainSave文件
-    table = PrettyTable()
-    table.field_names = ['编号', '时间', '分类器', '最大打乱轮数']
+def mode_show(interactive: bool):
+    def list_saves():
+        """
+        列出saves下的TrainSave文件名
+        :return: saves下的TrainSave文件名
+        """
+        table = PrettyTable()
+        table.field_names = ['编号', '时间', '分类器', '最大打乱轮数']
 
-    # 定义正则表达式
-    pattern = re.compile(r'^\[(?P<time>[^\]]+)\](?P<classifier>[^.]+)\.summary(?:\.(?P<shuffle>\d+))?\.csv$')
+        # 定义正则表达式
+        pattern = re.compile(r'^\[(?P<time>[^\]]+)\](?P<classifier>[^.]+)\.summary(?:\.(?P<shuffle>\d+))?\.csv$')
 
-    # 使用字典存储每个时间-分类器组合的最大打乱轮数
-    max_shuffle_dict = {}
+        # 使用字典存储每个时间-分类器组合的最大打乱轮数
+        max_shuffle_dict = {}
 
-    for file in os.listdir(saves):
-        match = pattern.match(file)
-        if match:
-            # 提取时间
-            time = match.group('time')
-            # 提取分类器
-            classifier = match.group('classifier')
-            # 提取打乱次数（如果有）
-            shuffle = int(match.group('shuffle')) if match.group('shuffle') else 0
+        for file in os.listdir(saves_path):
+            match = pattern.match(file)
+            if match:
+                # 提取时间
+                time = match.group('time')
+                # 提取分类器
+                classifier = match.group('classifier')
+                # 提取打乱次数（如果有）
+                shuffle = int(match.group('shuffle')) if match.group('shuffle') else 0
 
-            # 更新最大打乱轮数
-            key = (time, classifier)
-            if key in max_shuffle_dict:
-                max_shuffle_dict[key] = max(max_shuffle_dict[key], shuffle)
-            else:
-                max_shuffle_dict[key] = shuffle
+                # 更新最大打乱轮数
+                key = (time, classifier)
+                if key in max_shuffle_dict:
+                    max_shuffle_dict[key] = max(max_shuffle_dict[key], shuffle)
+                else:
+                    max_shuffle_dict[key] = shuffle
 
-    # 将字典中的信息添加到表格中
-    i = 1
-    for (time, classifier), max_shuffle in max_shuffle_dict.items():
-        table.add_row([i, time, classifier, max_shuffle if max_shuffle > 0 else '无'])
-        i += 1
+        # 将字典中的信息添加到表格中
+        i = 1
+        for (time, classifier), max_shuffle in max_shuffle_dict.items():
+            table.add_row([i, time, classifier, max_shuffle if max_shuffle > 0 else '无'])
+            i += 1
 
-    print(table)
+        print(table)
+        return max_shuffle_dict
+
+    def load_saves(saves_dict):
+        """
+        加载 TrainSaves，为每个分类器选出最佳 k 值
+        选取原则：每个分类器得到n个随机打乱的数据集，相当于每个分类器运行n轮，
+        每轮运行都会尝试范围内的全部 k 值并计算 au_roc，
+        选出 au_roc 的中位数和对应 k 值作为本轮的结果，
+        接着在产生的 n 个 au_roc 中选出最大的 au_roc 对应的 k 值作为该分类器的最佳 k 值。
+        :param saves_dict:
+        :return: train_saves 和 best_saves
+        """
+        loader = TrainSaveLoader()
+        train_saves: dict[str, dict[int, TrainSave]] = {}
+        best_saves: dict[str, tuple[TrainSave, int, float]] = {}
+
+        # 逐分类器加载TrainSave
+        for (time, classifier), max_shuffle in saves_dict.items():
+            if classifier not in train_saves.keys():
+                train_saves[classifier] = {}
+
+            # 每轮打乱中根据 au_roc 的中位数选出一个 k 值，
+            # 然后选出对应 au_roc 最大的 k 作为最佳 k 值
+            best_k = -1
+            best_au_roc = -1
+            best_save = None
+
+            for t in range(1, max_shuffle + 1):
+                # 加载每轮打乱的TrainSave
+                print(f'加载 {classifier} 第 {t} 轮打乱的训练数据')
+                train_save = loader.load(path=saves_path, name=f'[{time}]{classifier}', shuffle_turns=t)
+                summary = train_save.summary()
+                median_k = summary['中位数K值']
+                median_au_roc = summary['中位数au_roc']
+
+                # 一个简单的选择排序
+                if median_au_roc > best_au_roc:
+                    best_k = median_k
+                    best_au_roc = median_au_roc
+                    # 更新最佳 TrainSave
+                    best_save = train_save
+                # 保存全部 TrainSave
+                train_saves[classifier][t] = train_save
+
+            best_saves[classifier] = (best_save, best_k, best_au_roc)
+
+        # Table 打印每个分类器的最佳超参数 k 值，以及对应的 au_roc
+        table = PrettyTable()
+        table.field_names = ['分类器', '最佳K值', '对应au_roc']
+        for classifier, (train_save, k, au_roc) in best_saves.items():
+            table.add_row([classifier, k, au_roc])
+        print(table)
+
+        return train_saves, best_saves
+
+    def test(classifier: BaseClassifier, train_save: TrainSave, k: int):
+        print(f'开始使用 {classifier_name} 预测测试集')
+        # 使用记录的训练集重新训练模型
+        classifier.train(train_save.train_data, k)
+        # 使用记录的测试集进行预测
+        predict_result, predict_probability = classifier.predict(train_save.test_data.samples)
+        # 结果保存为新的 TrainSave
+        new_train_save = TrainSave(classifier_name, train_save.train_data, train_save.verification_data,
+                                   train_save.test_data)
+        new_train_save.add_evaluation_result(k, predict_result, predict_probability,
+                                             true_labels=train_save.test_data.labels)
+        return new_train_save
+
+    saves_dict = list_saves()
+    _, best_saves = load_saves(saves_dict)
+
+    # 根据最优 TrainSave，使用其记录的训练集重新训练模型，使用其记录的测试集进行预测
+    tests = []
+    for classifier_name, (train_save, k, au_roc) in best_saves.items():
+        match classifier_name:
+            case PCAKNNClassifier.__name__:
+                tests.append(test(PCAKNNClassifier(), train_save, k))
+            case LDAKNNClassifier.__name__:
+                tests.append(test(LDAKNNClassifier(), train_save, k))
+            case _:
+                raise ValueError(f'{classifier_name} 不支持')
+
+    # 保存测试结果
+    os.makedirs(best_test_saves_path, exist_ok=True)
+    time = datetime.now().strftime("[%Y-%m-%d_%H_%M_%S]")
+    for test in tests:
+        test.save(best_test_saves_path, f'{time}{test.classifier}', 0)
 
 
 def prompt(str, prefix='', suffix=' >'):
@@ -195,7 +286,7 @@ def main(args):
     for item in running_modes:
         table.add_row([item['编号'], item['模式'], item['描述']])
 
-    os.makedirs(saves, exist_ok=True)
+    os.makedirs(saves_path, exist_ok=True)
 
     while args.isPresenting:
         # 打印表格
@@ -206,13 +297,14 @@ def main(args):
                 mode_train(interactive=True)
                 break
             case '2':
-                mode_show()
+                mode_show(interactive=True)
                 break
             case _:
                 print('请输入正确的模式编号！')
     if not args.isPresenting:
         print('当前非演示模式')
         mode_train(interactive=False)
+        mode_show(interactive=False)
 
 
 if __name__ == '__main__':

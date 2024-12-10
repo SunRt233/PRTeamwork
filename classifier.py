@@ -23,6 +23,9 @@ class Memory:
         self.dimens = dimens  # 保留的主成分个数
 
 class BaseClassifier(ABC):
+    @staticmethod
+    def simple_name():
+        pass
     """
     抽象基类，定义分类器的基本接口。
     """
@@ -64,9 +67,12 @@ class PCAKNNClassifier(BaseClassifier):
     PCA 降维后 KNN 分类器。
     """
     def __init__(self, dimens=-1, print_log=False):
-        self.print_log = None
+        self.print_log = print_log
         self.dimens = dimens
 
+    @staticmethod
+    def simple_name():
+        return 'PCA+KNN'
     def train(self, data: DataContainer, k: int):
         if 0 < self.dimens < data.num_features():
             dimens = self.dimens
@@ -102,8 +108,12 @@ class PCAKNNClassifier(BaseClassifier):
 
 class LDAKNNClassifier(BaseClassifier):
     def __init__(self, dimens=-1, print_log=False):
-        self.print_log = None
+        self.print_log = print_log
         self.dimens = dimens
+
+    @staticmethod
+    def simple_name():
+        return 'LDA+KNN'
 
     def train(self, data: DataContainer, k: int):
         if 0 < self.dimens < data.num_features():
