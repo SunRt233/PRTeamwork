@@ -5,7 +5,7 @@ filePattern = strcat(basepath,'*.evaluation.*.csv');
 
 % 获取所有符合模式的文件名
 evaluationFiles = dir(fullfile(filePattern));
-disp(evaluationFiles)
+
 % 初始化变量名以匹配数据列
 variableNamesSummary = {'Classifier', 'TrainingSetSize', 'ValidationSetSize', 'TestSetSize', 'KValueRange', 'OptimalK', 'WorstK', 'MedianK', 'OptimalAUROC', 'WorstAUROC', 'MedianAUROC'};
 variableNamesEvaluation = {'K', 'TrueLabel', 'PredictedLabel', 'PredProbClass1', 'PredProbClass2', 'PredProbClass3'};
@@ -16,7 +16,6 @@ fileInfo = struct('Classifier', {}, 'SummaryFile', {}, 'EvaluationFile', {}, 'Me
 % 读取每个summary文件并提取中位数K值，同时存储文件对信息
 for fileIdx = 1:length(evaluationFiles)
     evaluationFile = evaluationFiles(fileIdx).name;
-    
     % 使用正则表达式提取文件名中的轮次数
     roundMatch = regexp(evaluationFile, 'evaluation\.(\d+)\.', 'tokens');
     if isempty(roundMatch) || isempty(roundMatch{1})
@@ -77,8 +76,9 @@ for clfIdx = 1:length(uniqueClassifiers)
     for roundIdx = 1:length(uniqueRounds)
         roundNumber = uniqueRounds(roundIdx);
         
-        % 创建新的图形窗口用于当前的分类器类型和轮次
-        fig = figure('Name', sprintf('%s, Round = %.0f', classifierType, roundNumber), 'NumberTitle', 'off','Visible', lower(logical(isVisible)));
+        aspectRatio = 16 / 9; widthFig = 800; heightFig = widthFig / aspectRatio;
+
+        fig = figure('Name', sprintf('%s, Round = %.0f', classifierType, roundNumber), 'NumberTitle', 'off','Visible', lower(logical(isVisible)),'Position', [100, 100, widthFig, heightFig]);
         
         % 绘制ROC曲线
         subplot(1, 2, 1);
@@ -129,7 +129,7 @@ for clfIdx = 1:length(uniqueClassifiers)
                     % 绘制ROC曲线
                     subplot(1, 2, 1);
                     [fpr, tpr, ~, aucRoc] = perfcurve(double(oneHotTrueLabels(:,classIdx)), predictedScores(:,classIdx), 1);
-                    plot(fpr, tpr, '-');
+                    plot(fpr, tpr, '-','LineWidth', 2);
                     
                     % 更新ROC图例
                     legendStrRoc{end+1} = sprintf('Class %d, K=%.0f (AUC: %.2f)', allUniqueClasses(classIdx), relevantFiles(fileInfoIdx).MedianK, aucRoc);
@@ -138,7 +138,7 @@ for clfIdx = 1:length(uniqueClassifiers)
                     subplot(1, 2, 2);
                     [precision, recall, ~, aucPr] = perfcurve(double(oneHotTrueLabels(:,classIdx)), predictedScores(:,classIdx), 1, ...
                                                              'XCrit', 'reca', 'YCrit', 'prec');
-                    plot(recall, precision, '-');
+                    plot(recall, precision, '-','LineWidth', 2);
                     
                     % 更新PR图例
                     legendStrPr{end+1} = sprintf('Class %d, K=%.0f (AUC: %.2f)', allUniqueClasses(classIdx), relevantFiles(fileInfoIdx).MedianK, aucPr);

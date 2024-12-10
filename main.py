@@ -2,15 +2,18 @@ import argparse
 import os
 import re
 from datetime import datetime
-
 from prettytable import PrettyTable
-
 from classifier import PCAKNNClassifier, LDAKNNClassifier, BaseClassifier
 from data import DataProvider
+from figure import draw_best_train_pr_roc_plots, draw_train_pr_roc_plots, draw_train_k_auroc_plots
 from save import TrainSave, TrainSaveLoader
 
+# 一些常量
 saves_path = r'./saves'
 best_test_saves_path = r'./best_tests'
+default_k_min = 5
+default_k_max = 25
+default_shuffle_turns = 5
 
 running_modes = [
     {'编号': 1, '模式': '训练', '描述': '批量运行调整超参数'},
@@ -68,8 +71,8 @@ def mode_train(interactive: bool):
         classifiers.append(LDAKNNClassifier())
 
     # 输入超参数 K 的搜索范围，默认最小值为5，默认最大值为25
-    k_min = 5
-    k_max = 25
+    k_min = default_k_min
+    k_max = default_k_max
     while interactive:
         input_str = input(prompt(f'输入 K 的最小值，默认为 {k_min}', suffix='：'))
         match input_str:
@@ -103,7 +106,7 @@ def mode_train(interactive: bool):
         # 打印K默认范围
         print(f'K 的默认范围是 {k_min} ~ {k_max}')
 
-    shuffle_turn = 5
+    shuffle_turn = default_shuffle_turns
     while interactive:
         input_str = input(prompt(f'输入打乱次数，默认为 {shuffle_turn}', suffix='：'))
         match input_str:
@@ -141,6 +144,8 @@ def mode_train(interactive: bool):
         summary = train_save.summary()
         table.add_row([round(item, 4) if isinstance(item, float) else item for item in summary.values()])
     print(table)
+    draw_train_pr_roc_plots(is_interactive=False)
+    draw_train_k_auroc_plots(is_interactive=interactive)
 
 
 def mode_show(interactive: bool):
@@ -270,6 +275,7 @@ def mode_show(interactive: bool):
     for test in tests:
         test.save(best_test_saves_path, f'{time}{test.classifier}', 0)
 
+    draw_best_train_pr_roc_plots(is_interactive=interactive)
 
 def prompt(str, prefix='', suffix=' >'):
     if len(prefix) > 0:
@@ -287,22 +293,30 @@ def main(args):
         table.add_row([item['编号'], item['模式'], item['描述']])
 
     os.makedirs(saves_path, exist_ok=True)
-
-    while args.isPresenting:
+    should_exiting = False
+    if args.isPresenting:
+        print("当前为演示模式，启用交互")
+    while args.isPresenting and (not should_exiting):
         # 打印表格
         print(table)
+        print("可输入 exit 结束运行")
         mode = input(prompt('选择运行模式', suffix='：'))
         match mode:
             case '1':
                 mode_train(interactive=True)
-                break
+                # 回车返回上一级
+                input('回车返回上一级')
+                # break
             case '2':
                 mode_show(interactive=True)
-                break
+                # 回车返回上一级
+                input('回车返回上一级')
+            case 'exit':
+                should_exiting = True
             case _:
                 print('请输入正确的模式编号！')
     if not args.isPresenting:
-        print('当前非演示模式')
+        print('当前非演示模式，禁用交互，全部按默认参数运行')
         mode_train(interactive=False)
         mode_show(interactive=False)
 
