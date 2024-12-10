@@ -36,9 +36,11 @@ function plotAUROCFiles(basepath, outputpath, isVisible)
         k = data.k;
         au_roc = data.au_roc;
 
+        aspectRatio = 16 / 4.5; widthFig = 800; heightFig = widthFig / aspectRatio;
+
         % 如果该分类器还没有对应的图形，则创建新的图形窗口
         if ~isKey(classifierFigs, classifierType)
-            fig = figure('Name', classifierType, 'NumberTitle', 'off', 'Visible', logical(isVisible));
+            fig = figure('Name', classifierType, 'NumberTitle', 'off', 'Visible', logical(isVisible),'Position', [100, 100, widthFig, heightFig]);
             hold on;
             classifierFigs(classifierType) = fig;  % 将图形句柄存入Map中
         else

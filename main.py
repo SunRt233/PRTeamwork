@@ -144,7 +144,10 @@ def mode_train(interactive: bool):
         summary = train_save.summary()
         table.add_row([round(item, 4) if isinstance(item, float) else item for item in summary.values()])
     print(table)
+
+    print('绘制并保存 K-AU-ROC 曲线')
     draw_train_pr_roc_plots(is_interactive=False)
+    print('绘制并保存 PR 曲线和 AU-ROC 曲线')
     draw_train_k_auroc_plots(is_interactive=interactive)
 
 
@@ -275,6 +278,7 @@ def mode_show(interactive: bool):
     for test in tests:
         test.save(best_test_saves_path, f'{time}{test.classifier}', 0)
 
+    print('绘制并保存 PR 曲线和 AU-ROC 曲线')
     draw_best_train_pr_roc_plots(is_interactive=interactive)
 
 def prompt(str, prefix='', suffix=' >'):

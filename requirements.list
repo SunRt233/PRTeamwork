@@ -2,5 +2,5 @@ pandas
 numpy
 scikit-learn
 openpyxl
-matlabengine
+matlabengine==23.2.1
 prettytable
