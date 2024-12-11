@@ -5,15 +5,15 @@ from datetime import datetime
 from prettytable import PrettyTable
 from classifier import PCAKNNClassifier, LDAKNNClassifier, BaseClassifier
 from data import DataProvider
-from figure import draw_best_train_pr_roc_plots, draw_train_pr_roc_plots, draw_train_k_auroc_plots
 from save import TrainSave, TrainSaveLoader
-
+from figure import draw_best_train_pr_roc_plots, draw_train_pr_roc_plots, draw_train_k_auroc_plots
+from concurrent.futures import ThreadPoolExecutor
 # 一些常量
 saves_path = r'./saves'
 best_test_saves_path = r'./best_tests'
 default_k_min = 5
 default_k_max = 25
-default_shuffle_turns = 5
+default_shuffle_turns = 9
 
 running_modes = [
     {'编号': 1, '模式': '训练', '描述': '批量运行调整超参数'},
@@ -127,13 +127,42 @@ def mode_train(interactive: bool):
     train_saves = []
     print('开始训练')
 
-    time = datetime.now().strftime("[%Y-%m-%d_%H_%M_%S]")
-    for t in range(1, shuffle_turn + 1):
-        for classifier in classifiers:
-            print(f'开始训练 {classifier.__class__.__name__}，第 {t} 次打乱')
-            train_save = train(classifier, data_provider, k_min, k_max, shuffle=True)
-            train_save.save(saves_path, f'{time}{train_save.classifier}', t)
-            train_saves.append(train_save)
+    timelabel = datetime.now().strftime("[%Y-%m-%d_%H_%M_%S]")
+
+    def task(classifier,t,i):
+        print(f'开始训练 {classifier.__class__.__name__}，第 {t} 次打乱')
+        train_save = train(classifier, data_provider, k_min, k_max, shuffle=True)
+        train_save.save(saves_path, f'{timelabel}{train_save.classifier}', t)
+        return train_save
+
+    def callback(future):
+        train_saves.append(future.result())
+
+    try:
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = []
+            i = 1
+            total_tasks = shuffle_turn * len(classifiers)
+            current_completed_tasks = -1
+
+            for t in range(1, shuffle_turn + 1):
+                for classifier in classifiers:
+                    future = executor.submit(task, classifier, t,i)
+                    future.add_done_callback(callback)
+                    futures.append(future)
+                    i += 1
+
+            import time
+            while current_completed_tasks != total_tasks:
+                l = len(train_saves)
+                # if l > current_completed_tasks:
+                    # 停2s
+                time.sleep(4)
+                current_completed_tasks = l
+                print(f'进度：{current_completed_tasks}/{total_tasks}')
+
+    except KeyboardInterrupt:
+        executor.shutdown(cancel_futures=True)
 
     print('训练完成')
     # Table打印summaries
